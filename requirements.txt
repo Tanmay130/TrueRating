@@ -1,0 +1,19 @@
+
+# CPU-only torch build -- much smaller install (~200MB vs ~2GB+ for the CUDA
+# build), and we never use a GPU anywhere in this project (device="cpu" is
+# hardcoded in every embedding call). This matters a lot on resource-limited
+# free hosting tiers like Streamlit Community Cloud.
+--extra-index-url https://download.pytorch.org/whl/cpu
+ 
+langchain>=0.2.0
+langchain-groq>=0.1.9
+python-dotenv>=1.0.0
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+streamlit>=1.35.0
+pandas>=2.2.0
+numpy>=1.26.0
+torch>=2.3.0
+scikit-learn>=1.5.0
+pydantic>=2.7.0
+plotly>=5.22.0

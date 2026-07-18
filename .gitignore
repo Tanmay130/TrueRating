@@ -1,0 +1,65 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# VS Code
+.vscode/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Jupyter
+.ipynb_checkpoints/
+
+# HuggingFace cache
+.cache/huggingface/
+huggingface_cache/
+
+# ChromaDB storage
+chroma/
+chromadb/
+*.chroma/
+chroma_db/
+chroma_db_*/
+
+# Dataset files (Yelp JSON, Zomato CSV, any other raw dataset dumps)
+*.json
+!package.json
+!package-lock.json
+*.csv
+
+# A/B test + feedback logs generated at runtime
+*.jsonl
+user_feedback.csv
+
+# --- Deploy exception ---
+# Streamlit Community Cloud's filesystem is ephemeral and there's no build
+# step that can run the live-API pipeline (extract.py/credibility.py need
+# GROQ_API_KEY + real time). So the finished Zomato database + its vector
+# store are committed deliberately for the public demo, overriding the
+# general *.db / chroma_db_*/ rules above. Keep these small and curated --
+# do NOT un-ignore the raw zomato.csv or Yelp JSON dumps.
+!truerating_zomato.db
+!chroma_db_zomato/
+!chroma_db_zomato/**
