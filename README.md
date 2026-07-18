@@ -328,7 +328,7 @@ Per-restaurant aspect breakdown (taste → hygiene → service → value → del
 
 Overall rating comparison across retrieved restaurants, plus the credibility mix of the reviews backing those scores:
 
-![Overall rating and credibility mix](assets/Review-analysis.jpg)
+![Overall rating and credibility mix](assets/review-analysis.jpg)
 
 ### Source Reviews
 The actual high-credibility reviews retrieved and cited as grounding for the answer, each tagged with its credibility weight.
@@ -338,15 +338,15 @@ The actual high-credibility reviews retrieved and cited as grounding for the ans
 ### A/B Testing
 Side-by-side comparison of the broad-recall (weight > 0.5) vs. high-credibility-only (weight > 0.8) retrieval strategies for the same query:
 
-![A/B test responses](assets/A:B-Testing-responses.jpg)
+![A/B test responses](assets/A:B-Testing-responses.png)
 
 An independent LLM referee scores each response on relevance, evidence use, and conciseness, and declares a winner:
 
 ![A/B test verdict](assets/A:B-Testing-verdict.jpg)
 
-Per-criterion comparison chart, including cases where the referee calls it a tie:
+Referee's Verdict:
 
-![A/B test chart and verdict](assets/A:B-Testing-verdict.jpg)
+![A/B test chart and verdict](assets/A:B-Testing-Verdict.jpg)
 
 
 
