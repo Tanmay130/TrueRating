@@ -41,7 +41,40 @@ Platforms like Zomato, Yelp, and TripAdvisor surface a single average star ratin
 For a company like Zomato, this matters commercially, not just academically: rating integrity is core to user trust, spam/fake reviews are an active adversarial problem, and aspect-level detail (not just an overall score) is what users actually want when deciding where to eat. TrueRating is a proof-of-concept for solving this: re-deriving a rating directly and transparently from review text, discounting low-trust content instead of averaging it in blindly, preserving aspect-level detail instead of collapsing it, and exposing all of it through a natural-language interface instead of a static number.
 
 ---
+## Tech Stack
 
+Language & core: Python 3.13, SQLite (the canonical restaurants / reviews / aspect_scores / review_weights / restaurant_scores schema every stage reads and writes).
+
+LLM & orchestration:
+
+
+Groq (llama-3.1-8b-instant) — powers aspect extraction, the RAG assistant's answers, and the A/B testing referee. Chosen for its free-tier speed and generous daily token allowance over alternatives that were tried and hit hard limits (Gemini's 5 RPM free tier, Llama 3.3 70B's 100K TPD cap).
+LangChain (langchain, langchain-groq) — prompt templates and LCEL chains (prompt | llm | parser) tying the LLM calls together.
+Pydantic v2 — schema definitions for LLM output (AspectScore, JudgeVerdict, etc.), with a custom JSON-extraction layer on top that tolerates conversational preamble and clamps out-of-range values rather than discarding a whole batch over one bad field.
+
+
+Retrieval & embeddings:
+
+
+ChromaDB — persistent vector store for review embeddings, filtered at query time by credibility weight and spam flag.
+sentence-transformers (all-MiniLM-L6-v2, CPU) — the embedding model used consistently across ingestion and query time so vectors are comparable.
+PyTorch (CPU-only build) — backs sentence-transformers; explicitly pinned to the CPU wheel since no stage ever uses a GPU.
+
+
+Data & evaluation:
+
+
+pandas / NumPy — vectorized credibility-weighted aggregation in score.py, and all of evaluate.py's metrics (Pearson/Spearman correlation, MAE, RMSE, ranking overlap).
+
+
+Application layer:
+
+
+Streamlit — the command-palette UI, deployed on Streamlit Community Cloud.
+Plotly — the live per-query dashboard (aspect line charts, overall rating bar chart, credibility mix donut, A/B comparison charts).
+
+
+Config & tooling: python-dotenv (local .env secrets), argparse CLIs across every pipeline stage, git/GitHub for source control.
 ## Features
 
 **Dataset-agnostic ingestion.** A pluggable adapter system (`adapters/`) means any restaurant review dataset can be onboarded by writing one small adapter file — no changes to the rest of the pipeline. Ships with adapters for the Yelp Open Dataset and the Kaggle Zomato Bangalore Restaurants dataset.
