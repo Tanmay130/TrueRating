@@ -39,7 +39,7 @@ from typing import List, Optional, Tuple
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, RootModel
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.output_parsers import PydanticOutputParser, StrOutputParser
 from langchain_groq import ChatGroq
 
 # ---------------------------------------------------------------------------
@@ -78,6 +78,11 @@ CRITICAL RULE: DO NOT guess or infer scores. If an aspect (like hygiene or
 delivery) is not explicitly mentioned in the text, its value MUST be null.
 Do not fill in a neutral 0.0 as a substitute for "not mentioned" — null and
 0.0 (neutral sentiment) are different things and must not be confused.
+
+CRITICAL RULE ON SCALE: taste/hygiene/service/value/delivery are SENTIMENT
+scores on a -1.0 to 1.0 scale ONLY. They are NOT a 1-5 star rating. Never
+output a number like 2.0, 3.0, 4.0, or 5.0 for these fields -- the maximum
+possible value is 1.0 and the minimum possible value is -1.0.
 
 Return exactly one result per input review, preserving its original
 review_id.
@@ -281,14 +286,18 @@ def save_batch_results(
 # LangChain pipeline
 # ---------------------------------------------------------------------------
 def build_chain(model_name: str, temperature: float, api_key: str):
-    parser = PydanticOutputParser(pydantic_object=BatchExtraction)
+    # PydanticOutputParser is used ONLY to generate format_instructions for
+    # the prompt. Actual parsing of the model's response is done manually in
+    # parse_batch_extraction() below, so a single out-of-range field doesn't
+    # discard an entire 10-review batch -- see that function's docstring.
+    schema_parser = PydanticOutputParser(pydantic_object=BatchExtraction)
 
     prompt = ChatPromptTemplate.from_messages(
         [
             ("system", SYSTEM_PROMPT),
             ("human", HUMAN_PROMPT),
         ]
-    ).partial(format_instructions=parser.get_format_instructions())
+    ).partial(format_instructions=schema_parser.get_format_instructions())
 
     llm = ChatGroq(
         model=model_name,
@@ -296,8 +305,78 @@ def build_chain(model_name: str, temperature: float, api_key: str):
         groq_api_key=api_key,
     )
 
-    chain = prompt | llm | parser
+    chain = prompt | llm | StrOutputParser()
     return chain
+
+
+def _clamp_aspect(raw_value) -> Optional[float]:
+    """Coerce a raw aspect value to float and clamp it into [-1.0, 1.0]."""
+    if raw_value is None:
+        return None
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError):
+        return None
+    return max(-1.0, min(1.0, value))
+
+
+def parse_batch_extraction(raw_text: str, batch_num: int) -> BatchExtraction:
+    """
+    Manually parse the LLM's raw JSON response instead of relying on strict
+    Pydantic validation for the whole batch.
+
+    Groq/Llama models occasionally slip and return an aspect value on a 1-5
+    star scale instead of the requested -1.0..1.0 sentiment scale (e.g.
+    "service": 4.0). With strict all-or-nothing Pydantic validation, ONE bad
+    field anywhere in a batch of 10 discarded all 10 reviews' worth of
+    otherwise-correct extraction -- and since temperature=0.0 makes the model
+    deterministic, retrying just failed identically every time. Here,
+    out-of-range numeric values are clamped into [-1.0, 1.0] instead of
+    rejected, and only individual items that are structurally unparseable
+    (missing review_id, not a dict, etc.) are dropped -- the rest of the
+    batch is still saved.
+
+    A genuinely malformed response (not valid JSON at all, or not a JSON
+    array) still raises, which triggers the normal retry path in
+    invoke_with_retry().
+    """
+    text = raw_text.strip()
+    if text.startswith("```"):
+        text = text.strip("`")
+        if text[:4].lower() == "json":
+            text = text[4:]
+        text = text.strip()
+
+    raw_items = json.loads(text)
+    if not isinstance(raw_items, list):
+        raise ValueError(f"Expected a JSON array of results, got {type(raw_items).__name__}")
+
+    items = []
+    dropped = 0
+    for raw in raw_items:
+        try:
+            review_id = raw.get("review_id")
+            if not review_id:
+                dropped += 1
+                continue
+            items.append(AspectScore(
+                review_id=review_id,
+                taste=_clamp_aspect(raw.get("taste")),
+                hygiene=_clamp_aspect(raw.get("hygiene")),
+                service=_clamp_aspect(raw.get("service")),
+                value=_clamp_aspect(raw.get("value")),
+                delivery=_clamp_aspect(raw.get("delivery")),
+                informative=bool(raw.get("informative", False)),
+            ))
+        except Exception as exc:
+            dropped += 1
+            print(f"[BATCH {batch_num}][WARN] Dropped one unparseable item: {exc}")
+
+    if dropped:
+        print(f"[BATCH {batch_num}][WARN] {dropped} item(s) dropped out of "
+              f"{len(raw_items)} (out-of-range values were clamped, not dropped).")
+
+    return BatchExtraction(root=items)
 
 
 def format_batch(batch: List[Tuple[str, str]]) -> str:
@@ -322,8 +401,8 @@ def invoke_with_retry(chain, reviews_block: str, batch_num: int) -> Optional[Bat
     attempt = 0
     while True:
         try:
-            result = chain.invoke({"reviews_block": reviews_block})
-            return result
+            raw_text = chain.invoke({"reviews_block": reviews_block})
+            return parse_batch_extraction(raw_text, batch_num)
         except Exception as exc:
             attempt += 1
             print(
@@ -360,10 +439,12 @@ def parse_args():
         "--batch-size", type=int, default=BATCH_SIZE, help="Reviews per API call"
     )
     parser.add_argument(
-        "--limit", type=int, default=5000,
-        help="Max pending reviews to process this run (default: 3000). "
-             "Reviews are queued round-robin by restaurant, so a smaller "
-             "--limit still spreads coverage across as many restaurants as "
+        "--limit", type=int, default=50000,
+        help="Max pending reviews to process this run (default: 50000, i.e. "
+             "effectively 'process everything pending' for datasets this size "
+             "-- avoids under-fitting restaurants by default). Reviews are "
+             "queued round-robin by restaurant, so if you DO pass a smaller "
+             "--limit, coverage still spreads across as many restaurants as "
              "possible instead of finishing one restaurant at a time.",
     )
     return parser.parse_args()
