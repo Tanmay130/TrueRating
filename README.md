@@ -338,11 +338,11 @@ The actual high-credibility reviews retrieved and cited as grounding for the ans
 ### A/B Testing
 Side-by-side comparison of the broad-recall (weight > 0.5) vs. high-credibility-only (weight > 0.8) retrieval strategies for the same query:
 
-![A/B test responses](assets/A:B-Testing-responses.png)
+![A/B test responses](assets/A:B-Testing.jpg)
 
 An independent LLM referee scores each response on relevance, evidence use, and conciseness, and declares a winner:
 
-![A/B test verdict](assets/A:B-Testing-verdict.jpg)
+![A/B test verdict](assets/A:B-Testing-response.png)
 
 Referee's Verdict:
 
