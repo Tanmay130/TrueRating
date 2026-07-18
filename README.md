@@ -344,10 +344,6 @@ An independent LLM referee scores each response on relevance, evidence use, and 
 
 ![A/B test verdict](assets/A:B-Testing-response.png)
 
-Referee's Verdict:
-
-![A/B test chart and verdict](assets/A:B-Testing-Verdict.jpg)
-
 
 
 ---
