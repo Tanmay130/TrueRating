@@ -6,22 +6,11 @@ Instead of trusting a platform's raw average star rating (which is vulnerable to
 
 > **Status: Beta.** The pipeline, architecture, and UI are complete and working end-to-end. Accuracy against real-world ratings is currently limited by review-extraction coverage rather than by the underlying method — see [Tradeoffs & Current Limitations](#tradeoffs--current-limitations) below for the honest numbers.
 
-**Live demo (Zomato Bangalore dataset):** `[add your Streamlit Community Cloud URL here]`
+**Live demo (Zomato Bangalore dataset):** `https://truerating-tqq4ibcqtjugfgqxychqyx.streamlit.app`
 
 ---
 
-## The Problem
 
-Platforms like Zomato, Yelp, and TripAdvisor surface a single average star rating per restaurant — but that number treats every review as equally trustworthy. In practice, it isn't:
-
-- **Spam and near-duplicate reviews** (copy-pasted, lightly reworded, or incentivized) count exactly as much as a genuine one.
-- **A two-word review** ("good food", "would recommend") carries the same weight as a detailed, specific one that actually describes the food, service, or hygiene.
-- **The rating is a single number**, collapsing taste, hygiene, service, value, and delivery into one score — so a restaurant with amazing food but terrible delivery looks identical to one that's mediocre at everything.
-- **There's no way to ask a question.** A user who wants "a place with fast delivery and good hygiene" has to read through dozens of reviews manually; the platform can't answer that directly.
-
-For a company like Zomato, this matters commercially, not just academically: rating integrity is core to user trust, spam/fake reviews are an active adversarial problem, and aspect-level detail (not just an overall score) is what users actually want when deciding where to eat. TrueRating is a proof-of-concept for solving this: re-deriving a rating directly and transparently from review text, discounting low-trust content instead of averaging it in blindly, preserving aspect-level detail instead of collapsing it, and exposing all of it through a natural-language interface instead of a static number.
-
----
 
 ## Table of Contents
 
@@ -38,6 +27,18 @@ For a company like Zomato, this matters commercially, not just academically: rat
 - [Deployment](#deployment)
 - [Screenshots](#screenshots)
 - [Roadmap](#roadmap)
+
+---
+## The Problem
+
+Platforms like Zomato, Yelp, and TripAdvisor surface a single average star rating per restaurant — but that number treats every review as equally trustworthy. In practice, it isn't:
+
+- **Spam and near-duplicate reviews** (copy-pasted, lightly reworded, or incentivized) count exactly as much as a genuine one.
+- **A two-word review** ("good food", "would recommend") carries the same weight as a detailed, specific one that actually describes the food, service, or hygiene.
+- **The rating is a single number**, collapsing taste, hygiene, service, value, and delivery into one score — so a restaurant with amazing food but terrible delivery looks identical to one that's mediocre at everything.
+- **There's no way to ask a question.** A user who wants "a place with fast delivery and good hygiene" has to read through dozens of reviews manually; the platform can't answer that directly.
+
+For a company like Zomato, this matters commercially, not just academically: rating integrity is core to user trust, spam/fake reviews are an active adversarial problem, and aspect-level detail (not just an overall score) is what users actually want when deciding where to eat. TrueRating is a proof-of-concept for solving this: re-deriving a rating directly and transparently from review text, discounting low-trust content instead of averaging it in blindly, preserving aspect-level detail instead of collapsing it, and exposing all of it through a natural-language interface instead of a static number.
 
 ---
 
@@ -315,13 +316,39 @@ TRUERATING_COLLECTION = "truerating_reviews"
 
 ## Screenshots
 
-_Add screenshots of the running app here — the search bar, a query result with the credibility dashboard (aspect line charts, overall rating bar chart, credibility mix donut), and the A/B testing view._
+### Search UI
+The command-palette style landing page — ask a natural-language question and get a grounded answer.
 
-<!--
-![Search UI](screenshots/search-ui.png)
-![Query results with dashboard](screenshots/query-dashboard.png)
-![A/B testing view](screenshots/ab-testing.png)
--->
+![Search UI](assets/Search-ui.jpg)
+
+### Analysis Dashboard
+Per-restaurant aspect breakdown (taste → hygiene → service → value → delivery, -1 to 1, with honest gaps where a credible review never mentioned that aspect):
+
+![Aspect breakdown](assets/analysis-aspect-breakdown.jpg)
+
+Overall rating comparison across retrieved restaurants, plus the credibility mix of the reviews backing those scores:
+
+![Overall rating and credibility mix](assets/analysis-overall-rating.png)
+
+### Source Reviews
+The actual high-credibility reviews retrieved and cited as grounding for the answer, each tagged with its credibility weight.
+
+![Source reviews](assets/source-reviews.png)
+
+### A/B Testing
+Side-by-side comparison of the broad-recall (weight > 0.5) vs. high-credibility-only (weight > 0.8) retrieval strategies for the same query:
+
+![A/B test responses](assets/ab-test-responses.png)
+
+An independent LLM referee scores each response on relevance, evidence use, and conciseness, and declares a winner:
+
+![A/B test verdict](assets/A/B-testing-verdict.png)
+
+Per-criterion comparison chart, including cases where the referee calls it a tie:
+
+![A/B test chart and verdict](assets/A/B-testing-verdict.jpg)
+
+
 
 ---
 
