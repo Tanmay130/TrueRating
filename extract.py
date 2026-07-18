@@ -45,8 +45,12 @@ from langchain_groq import ChatGroq
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-BATCH_SIZE = 10          # reduced from 15 to stay safely under Groq's TPM limit
-MAX_RETRIES = 2          # additional retries after the first attempt (3 total tries)
+BATCH_SIZE = 10          # llama-3.1-8b-instant on Groq's free/on-demand tier caps
+                          # a SINGLE request (prompt + requested completion tokens
+                          # combined) at 6,000 total tokens. Batch size 15 combined
+                          # with a larger max_tokens blew past that on every batch
+                          # (100% failure rate) -- 10 is the proven-safe size.
+MAX_RETRIES = 3          # additional retries after the first attempt (4 total tries)
 RETRY_DELAY_SECONDS = 3
 BATCH_SLEEP_SECONDS = 2.5  # Groq free tier allows 30 RPM; 2.5s keeps us well under it
 
@@ -86,6 +90,12 @@ possible value is 1.0 and the minimum possible value is -1.0.
 
 Return exactly one result per input review, preserving its original
 review_id.
+
+CRITICAL RULE ON OUTPUT FORMAT: Respond with ONLY the raw JSON array. Do
+NOT include any introductory text like "Here are the results", do NOT wrap
+it in markdown code fences (no ```), and do NOT add any commentary before
+or after it. Your entire response must be parseable directly as JSON,
+starting with [ and ending with ].
 
 {format_instructions}
 """
@@ -303,6 +313,13 @@ def build_chain(model_name: str, temperature: float, api_key: str):
         model=model_name,
         temperature=temperature,
         groq_api_key=api_key,
+        # Explicit generous cap so a batch's worth of JSON output never gets
+        # silently truncated mid-object (which produces malformed JSON that
+        # fails to parse), while staying well clear of Groq's free-tier
+        # 6,000-token-per-request ceiling for this model (prompt + this
+        # value combined must stay under that). 3000 leaves comfortable
+        # headroom for BATCH_SIZE=10's prompt size.
+        max_tokens=3000,
     )
 
     chain = prompt | llm | StrOutputParser()
@@ -339,13 +356,21 @@ def parse_batch_extraction(raw_text: str, batch_num: int) -> BatchExtraction:
     A genuinely malformed response (not valid JSON at all, or not a JSON
     array) still raises, which triggers the normal retry path in
     invoke_with_retry().
+
+    The model also sometimes wraps its JSON in conversational preamble, e.g.
+    "Here are the results in JSON format:\n\n```json\n[...]\n```" rather
+    than a bare array. A simple startswith("```") check misses this since
+    the response doesn't start with a fence, it starts with plain text --
+    so instead we locate the outermost [ ... ] in the response wherever it
+    is and parse just that slice, ignoring anything before or after it.
     """
     text = raw_text.strip()
-    if text.startswith("```"):
-        text = text.strip("`")
-        if text[:4].lower() == "json":
-            text = text[4:]
-        text = text.strip()
+
+    start = text.find("[")
+    end = text.rfind("]")
+    if start == -1 or end == -1 or end < start:
+        raise ValueError(f"No JSON array found in response: {text[:200]!r}")
+    text = text[start : end + 1]
 
     raw_items = json.loads(text)
     if not isinstance(raw_items, list):
@@ -400,6 +425,7 @@ def invoke_with_retry(chain, reviews_block: str, batch_num: int) -> Optional[Bat
     """
     attempt = 0
     while True:
+        raw_text = None
         try:
             raw_text = chain.invoke({"reviews_block": reviews_block})
             return parse_batch_extraction(raw_text, batch_num)
@@ -409,6 +435,18 @@ def invoke_with_retry(chain, reviews_block: str, batch_num: int) -> Optional[Bat
                 f"[BATCH {batch_num}][WARN] Attempt {attempt} failed "
                 f"({type(exc).__name__}): {exc}"
             )
+            # Diagnostic: show exactly what the API returned (or that the
+            # call itself never returned) so a JSON parse failure doesn't
+            # stay a black box. A truly empty string here (vs. an exception
+            # from chain.invoke itself) points at Groq-side throttling/
+            # content filtering rather than a bug in our parsing.
+            if raw_text is not None:
+                preview = raw_text[:200].replace("\n", "\\n")
+                print(f"[BATCH {batch_num}][DEBUG] Raw response was "
+                      f"{len(raw_text)} chars: {preview!r}")
+            else:
+                print(f"[BATCH {batch_num}][DEBUG] chain.invoke() itself raised "
+                      f"(no response received at all).")
             if attempt > MAX_RETRIES:
                 print(
                     f"[BATCH {batch_num}][ERROR] Exceeded max retries "
