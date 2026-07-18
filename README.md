@@ -324,29 +324,29 @@ The command-palette style landing page — ask a natural-language question and g
 ### Analysis Dashboard
 Per-restaurant aspect breakdown (taste → hygiene → service → value → delivery, -1 to 1, with honest gaps where a credible review never mentioned that aspect):
 
-![Aspect breakdown](assets/analysis-aspect-breakdown.jpg)
+![Aspect breakdown](assets/Aspect-breakdown.jpg)
 
 Overall rating comparison across retrieved restaurants, plus the credibility mix of the reviews backing those scores:
 
-![Overall rating and credibility mix](assets/analysis-overall-rating.png)
+![Overall rating and credibility mix](assets/Review-analysis.jpg)
 
 ### Source Reviews
 The actual high-credibility reviews retrieved and cited as grounding for the answer, each tagged with its credibility weight.
 
-![Source reviews](assets/source-reviews.png)
+![Source reviews](assets/source-reviews-&-feedback.jpg)
 
 ### A/B Testing
 Side-by-side comparison of the broad-recall (weight > 0.5) vs. high-credibility-only (weight > 0.8) retrieval strategies for the same query:
 
-![A/B test responses](assets/ab-test-responses.png)
+![A/B test responses](assets/A:B-Testing-responses.jpg)
 
 An independent LLM referee scores each response on relevance, evidence use, and conciseness, and declares a winner:
 
-![A/B test verdict](assets/A/B-testing-verdict.png)
+![A/B test verdict](assets/A:B-Testing-verdict.jpg)
 
 Per-criterion comparison chart, including cases where the referee calls it a tie:
 
-![A/B test chart and verdict](assets/A/B-testing-verdict.jpg)
+![A/B test chart and verdict](assets/A:B-Testing-verdict.jpg)
 
 
 
